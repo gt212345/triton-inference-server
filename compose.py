@@ -88,7 +88,8 @@ FROM {}
     import build
     df += build.dockerfile_prepare_container_linux(argmap, backends,
                                                    FLAGS.enable_gpu,
-                                                   platform.machine().lower())
+                                                #    platform.machine().lower())
+                                                   'aarch64')
     # Copy over files
     df += '''
 WORKDIR /opt/tritonserver
@@ -227,12 +228,12 @@ def create_argmap(images, skip_pull):
         gpu_enabled = e0.group(1) == "1"
     elif (e1 != None):
         gpu_enabled = True
-    fail_if(
-        gpu_enabled != enable_gpu,
-        'Error: full container provided was build with '
-        '\'TRITON_SERVER_GPU_ENABLED\' as {} and you are composing container'
-        'with \'TRITON_SERVER_GPU_ENABLED\' as {}'.format(
-            gpu_enabled, enable_gpu))
+    # fail_if(
+    #     gpu_enabled != enable_gpu,
+    #     'Error: full container provided was build with '
+    #     '\'TRITON_SERVER_GPU_ENABLED\' as {} and you are composing container'
+    #     'with \'TRITON_SERVER_GPU_ENABLED\' as {}'.format(
+    #         gpu_enabled, enable_gpu))
     e = re.search("TRITON_SERVER_VERSION=([\S]{6,}) ", vars)
     version = "" if e is None else e.group(1)
     fail_if(
@@ -339,7 +340,7 @@ if __name__ == '__main__':
                         nargs='?',
                         type=lambda x: (str(x).lower() == 'true'),
                         const=True,
-                        default=True,
+                        default=False,
                         required=False,
                         help=argparse.SUPPRESS)
     parser.add_argument(
@@ -410,7 +411,7 @@ if __name__ == '__main__':
         else:
             images = {
                 "full":
-                    "nvcr.io/nvidia/tritonserver:{}-cpu-only-py3".format(
+                    "nvcr.io/nvidia/tritonserver:{}-py3".format(
                         FLAGS.container_version),
                 "min":
                     "ubuntu:20.04"

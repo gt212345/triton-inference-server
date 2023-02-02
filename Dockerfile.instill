@@ -1,6 +1,32 @@
 #
 # Multistage build.
 #
+FROM --platform=$BUILDPLATFORM continuumio/miniconda3 AS conda-build
+
+ARG PYTHONNOUSERSITE=True
+
+RUN conda create --name triton-conda-env python=3.8 scikit-learn pytorch==1.11.0 torchvision==0.12.0 -c conda-forge -c pytorch
+
+# Install triton_python_model
+ARG TRITON_PYTHON_MODEL_VERSION
+ADD /triton_python_model /tmp/triton_python_model
+ADD requirements.txt /tmp/
+ADD setup.py /tmp/
+RUN conda run -n triton-conda-env \
+  python -m pip install -r /tmp/requirements.txt
+RUN conda run -n triton-conda-env \
+  python -m pip install --no-deps /tmp
+RUN cd /tmp && conda run -n triton-conda-env \
+  python setup.py install
+
+# Install conda-pack
+RUN conda install conda-pack=0.7.0 -c conda-forge
+
+#  conda pack
+RUN conda pack -n triton-conda-env -o python-3-8.tar.gz
+
+
+
 ARG TRITON_VERSION=2.29.0
 ARG TRITON_CONTAINER_VERSION=22.12
 
@@ -56,7 +82,7 @@ RUN ln -sf ${_CUDA_COMPAT_PATH}/lib.real ${_CUDA_COMPAT_PATH}/lib  && echo ${_CU
 
 WORKDIR /opt/tritonserver
 RUN rm -fr /opt/tritonserver/*
-COPY docker/entrypoint.d/ /opt/nvidia/entrypoint.d/
+# COPY docker/entrypoint.d/ /opt/nvidia/entrypoint.d/
 
 WORKDIR /opt/tritonserver
 COPY --from=full /opt/tritonserver/LICENSE .
@@ -73,8 +99,11 @@ COPY --from=full /opt/tritonserver/backends/onnxruntime /opt/tritonserver/backen
 COPY --from=full /opt/tritonserver/backends/python /opt/tritonserver/backends/python
 COPY --from=full /opt/tritonserver/backends/tensorrt /opt/tritonserver/backends/tensorrt
 COPY --from=full /opt/tritonserver/backends/fastertransformer /opt/tritonserver/backends/fastertransformer
-#  Copying over repoagents 
+# Copying over repoagents 
 COPY --from=full /opt/tritonserver/repoagents/checksum /opt/tritonserver/repoagents/checksuml
 COPY --from=full /usr/bin/serve /usr/bin/.
+# Copying over conda-env
+WORKDIR /conda-pack
+COPY --from=conda-build /python-3-8.tar.gz ./
 
 ENV NCCL_LAUNCH_MODE=GROUP
